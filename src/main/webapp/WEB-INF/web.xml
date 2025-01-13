@@ -7,10 +7,6 @@
         <welcome-file>/views/data/pages/extra.xhtml</welcome-file>
     </welcome-file-list>
 
-<!--    <session-config>-->
-<!--        <session-timeout>30</session-timeout> &lt;!&ndash; 30 минут &ndash;&gt;-->
-<!--    </session-config>-->
-
     <context-param>
         <param-name>primefaces.THEME</param-name>
         <param-value>bootstrap</param-value>

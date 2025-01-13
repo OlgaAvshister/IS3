@@ -115,15 +115,13 @@ public class Actions {
         }
         EntityManager em = emf.createEntityManager();
         try {
+            em.joinTransaction();
             em.merge(o);
         } catch (Exception e) {
             if (em.getTransaction().isActive()) {
                 em.getTransaction().rollback();
             }
             throw e;
-        }
-        finally {
-            em.close();
         }
     }
 

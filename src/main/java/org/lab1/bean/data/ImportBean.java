@@ -66,8 +66,9 @@ public class ImportBean extends UsedManagerBean<Import> {
         initTransactionalClasses();
     }
 
+    @TransactionAttribute(TransactionAttributeType.REQUIRED)
     public String commit(List<Ticket> tickets, UploadedFile file) throws Exception {
-        boolean simulateError = true;
+        boolean simulateError = false;
         String bucketName = "bucket";
         try {
             if (simulateError) {
@@ -112,6 +113,7 @@ public class ImportBean extends UsedManagerBean<Import> {
     @TransactionAttribute(TransactionAttributeType.REQUIRED)
     public void saveTickets(List<Ticket> tickets) throws Exception {
         List<Ticket> madeTickets = new ArrayList<>();
+
         for (Ticket ticket : tickets) {
             if (isTicketNameExists(ticket.getName())) {
                 throw new Exception("Ticket с таким name уже существует: " + ticket.getName());
@@ -144,11 +146,9 @@ public class ImportBean extends UsedManagerBean<Import> {
             }
         }
         for (Ticket ticket : madeTickets) {
-            Actions.addCommit(ticket);
+            Actions.add(ticket);
         }
     }
-
-
 
     public void importDataFromUpload() throws SystemException {
         System.out.println("importDataFromUpload called");
@@ -160,17 +160,15 @@ public class ImportBean extends UsedManagerBean<Import> {
             tm.begin();
             currentImport.setOwner(getCurrentOwner());
             List<Ticket> tickets = loader.loadTicketsFromFile(xmlFile);
-            System.out.println("tickets are load");
             String fileUrl = commit(tickets, xmlFile);
 
             currentImport.setFileUrl(fileUrl);
             currentImport.setCreatedEntitiesCount((long) tickets.size());
             currentImport.setStatus(ImportStatus.FINISHED);
             currentImport.setMessage("Import completed successfully");
-            Actions.add(currentImport);
+            Actions.addCommit(currentImport);
             FacesContext.getCurrentInstance().addMessage(null,
                     new FacesMessage(FacesMessage.SEVERITY_INFO, "Import successful", null));
-
             System.out.println("Ticket saved successfully.");
             tm.commit();
         } catch (Exception e) {
@@ -300,7 +298,6 @@ public class ImportBean extends UsedManagerBean<Import> {
             System.out.println("Error initializing transactional classes: " + e.getMessage());
         }
     }
-
 
     @Override
     public List<Long> getIdList() {
