@@ -16,12 +16,15 @@ import org.lab1.data.entity.User;
 import org.lab1.data.entity.enums.ImportStatus;
 import org.primefaces.model.file.UploadedFile;
 
+import javax.ejb.TransactionAttribute;
+import javax.ejb.TransactionAttributeType;
 import javax.faces.application.FacesMessage;
 import javax.faces.bean.ManagedBean;
 import javax.faces.bean.RequestScoped;
 import javax.faces.context.FacesContext;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
+import javax.transaction.SystemException;
 import javax.transaction.TransactionManager;
 import javax.transaction.Transactional;
 import javax.transaction.UserTransaction;
@@ -64,18 +67,15 @@ public class ImportBean extends UsedManagerBean<Import> {
     }
 
     public String commit(List<Ticket> tickets, UploadedFile file) throws Exception {
-        boolean simulateError = false;
+        boolean simulateError = true;
         String bucketName = "bucket";
-        tm.begin();
-        System.out.println("transaction started");
         try {
+            if (simulateError) {
+                throw new RuntimeException("Какая-то ошибка в бизнес логике -> rollback транзакции");
+            }
             saveTickets(tickets);
-            try {
-                System.out.println("ya tut");
-                if (simulateError) {
-                    throw new RuntimeException("Какая-то ошибка в бизнес логике -> rollback транзакции");
-                }
 
+            try {
                 String fileName = currentImport.getOwner().getLogin() + "_" + System.currentTimeMillis() + "/" +
                         Objects.requireNonNull(file.getFileName());
                 InputStream fileInputStream = file.getInputStream();
@@ -95,81 +95,74 @@ public class ImportBean extends UsedManagerBean<Import> {
                                 .bucket(bucketName)
                                 .object(fileName)
                                 .build());
-
-                tm.commit();
-                System.out.println("commit был");
                 return fileUrlAfterSave;
+            } catch (RuntimeException e) {
+                System.err.println("RuntimeException occurred: " + e.getMessage());
+                throw e;
             } catch (Exception e) {
-                System.out.println("падает 1");
-                if (tm.getStatus() == javax.transaction.Status.STATUS_ACTIVE) {
-                    tm.rollback();
-                }
+                System.err.println("Exception occurred: " + e.getMessage());
                 throw e;
             }
         } catch (Exception e) {
-            if (utx != null) {
-                System.out.println("падает 2");
-                if (tm.getStatus() == javax.transaction.Status.STATUS_ACTIVE) {
-                    tm.rollback();
-                }
-            }
+            System.err.println("Transaction failed: " + e.getMessage());
             throw e;
         }
     }
 
-
+    @TransactionAttribute(TransactionAttributeType.REQUIRED)
     public void saveTickets(List<Ticket> tickets) throws Exception {
-//        tm.begin();
-        try {
-            System.out.println("proverochka");
-            for (Ticket ticket : tickets) {
-                if (isTicketNameExists(ticket.getName())) {
-                    throw new Exception("Ticket с таким name уже существует: " + ticket.getName());
-                }
-                ValidationResult valid = validateTicket(ticket);
-                if (valid.getIsValid()) {
-                    ticket.getVenue().getAddress().setOwner(getCurrentOwner());
-                    Actions.addForCommit(ticket.getVenue().getAddress());
-                    ticket.getVenue().setOwner(getCurrentOwner());
-                    Actions.addForCommit(ticket.getVenue());
-                    ticket.getCoordinates().setOwner(getCurrentOwner());
-                    Actions.addForCommit(ticket.getCoordinates());
-                    ticket.getEvent().setOwner(getCurrentOwner());
-                    Actions.addForCommit(ticket.getEvent());
-                    ticket.getPerson().getLocation().setOwner(getCurrentOwner());
-                    Actions.addForCommit(ticket.getPerson().getLocation());
-                    ticket.getPerson().setOwner(getCurrentOwner());
-                    Actions.addForCommit(ticket.getPerson());
-                    ticket.setOwner(getCurrentOwner());
+        List<Ticket> madeTickets = new ArrayList<>();
+        for (Ticket ticket : tickets) {
+            if (isTicketNameExists(ticket.getName())) {
+                throw new Exception("Ticket с таким name уже существует: " + ticket.getName());
+            }
 
-                    Actions.addForCommit(ticket);
-                    System.out.println("ticket added");
-                } else {
-                    throw new Exception("Import failed");
+            for (Ticket madeTicket : madeTickets) {
+                if (madeTicket.getName().equals(ticket.getName())) {
+                    throw new Exception("Ticket с таким name уже существует в import файле: " + ticket.getName());
                 }
             }
 
-//            tm.commit();
-        } catch (Exception e) {
-//            tm.rollback();
-            throw e;
+            ValidationResult valid = validateTicket(ticket);
+            if (valid.getIsValid()) {
+                ticket.getVenue().getAddress().setOwner(getCurrentOwner());
+                Actions.addCommit(ticket.getVenue().getAddress());
+                ticket.getVenue().setOwner(getCurrentOwner());
+                Actions.addCommit(ticket.getVenue());
+                ticket.getCoordinates().setOwner(getCurrentOwner());
+                Actions.addCommit(ticket.getCoordinates());
+                ticket.getEvent().setOwner(getCurrentOwner());
+                Actions.addCommit(ticket.getEvent());
+                ticket.getPerson().getLocation().setOwner(getCurrentOwner());
+                Actions.addCommit(ticket.getPerson().getLocation());
+                ticket.getPerson().setOwner(getCurrentOwner());
+                Actions.addCommit(ticket.getPerson());
+                ticket.setOwner(getCurrentOwner());
+                madeTickets.add(ticket);
+            } else {
+                throw new Exception("Import failed");
+            }
+        }
+        for (Ticket ticket : madeTickets) {
+            Actions.addCommit(ticket);
         }
     }
 
 
 
-    public void importDataFromUpload() {
+    public void importDataFromUpload() throws SystemException {
         System.out.println("importDataFromUpload called");
         try {
             if (xmlFile == null) {
                 throw new Exception("No file uploaded!");
             }
             System.out.println("File uploaded");
-
+            tm.begin();
             currentImport.setOwner(getCurrentOwner());
             List<Ticket> tickets = loader.loadTicketsFromFile(xmlFile);
-
+            System.out.println("tickets are load");
             String fileUrl = commit(tickets, xmlFile);
+
             currentImport.setFileUrl(fileUrl);
             currentImport.setCreatedEntitiesCount((long) tickets.size());
             currentImport.setStatus(ImportStatus.FINISHED);
@@ -179,21 +172,20 @@ public class ImportBean extends UsedManagerBean<Import> {
                     new FacesMessage(FacesMessage.SEVERITY_INFO, "Import successful", null));
 
             System.out.println("Ticket saved successfully.");
+            tm.commit();
         } catch (Exception e) {
             System.out.println("Import error: " + e);
+            tm.rollback();
             currentImport.setStatus(ImportStatus.FAILED);
-            int maxLength = 255;
-            String message = e.getMessage();
-            if (message != null && message.length() > maxLength) {
-                message = message.substring(0, maxLength);
-            }
-
-            currentImport.setMessage(message);
+            currentImport.setMessage(e.getMessage());
             Actions.add(currentImport);
             FacesContext.getCurrentInstance().addMessage(null,
                     new FacesMessage(FacesMessage.SEVERITY_ERROR, e.getMessage(), ""));
         }
     }
+
+
+
 
     private boolean isTicketNameExists(String name) {
         List<Ticket> existingTickets = Actions.findAll(Ticket.class);
@@ -299,18 +291,6 @@ public class ImportBean extends UsedManagerBean<Import> {
                 .credentials("minioadmin", "minioadmin")
                 .build();
     }
-
-//    private void initTransactionalClasses() {
-//        try {
-//            InitialContext initialContext = new InitialContext();
-//            this.utx = (UserTransaction) initialContext.lookup("java:comp/UserTransaction");
-//            this.tm = (TransactionManager) initialContext.lookup("java:comp/TransactionManager");
-//        } catch (NamingException e) {
-//            System.out.println("NamingException внутри initTransactionalClasses");
-//        } catch (Exception e1) {
-//            System.out.println(e1);
-//        }
-//    }
 
     private void initTransactionalClasses() {
         try {

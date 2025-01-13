@@ -104,25 +104,22 @@ public class Actions {
         }
     }
 
-    public static void addForCommit(Object o){
+    public static void addCommit(Object o){
         if (!o.getClass().equals(Change.class) && !o.getClass().equals(Import.class)){
             Change change = new Change();
             change.setEntity(o.getClass().getName());
             change.setOwner(null);
             change.setType("Add");
             change.setChangeDate(new Date());
-            addForCommit(change);
+            addCommit(change);
         }
         EntityManager em = emf.createEntityManager();
         try {
-            em.joinTransaction();
-            if (em.contains(o)) {
-                System.out.println("Объект уже управляем!");
-            } else {
-                System.out.println("Объект не управляем, будет вызван merge.");
-            }
             em.merge(o);
         } catch (Exception e) {
+            if (em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
             throw e;
         }
         finally {
