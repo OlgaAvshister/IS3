@@ -1,29 +1,26 @@
 package org.lab1.data;
 
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.logging.Logger;
-import java.util.stream.Collectors;
+import org.hibernate.cfg.Configuration;
+import org.lab1.data.entity.*;
+import org.lab1.data.entity.enums.TicketType;
 
+import javax.faces.application.FacesMessage;
+import javax.faces.context.FacesContext;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.Persistence;
-import javax.persistence.TypedQuery;
-
-import org.hibernate.cfg.Configuration;
-import org.lab1.data.entity.*;
+import javax.transaction.Transactional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class Actions {
     static String persistenceName = "default";
     static final Configuration configuration = new Configuration().configure("hibernate.cfg.xml");
     static EntityManagerFactory emf = Persistence.createEntityManagerFactory("default", configuration.getProperties());
 
-    private Actions(){
+    private Actions() {
     }
-    
+
     @SuppressWarnings("unused")
     private static final Map<String, String> classMap = createClassMap();
 
@@ -38,7 +35,35 @@ public class Actions {
         return map;
     }
 
+    private static boolean isTicketNameExists(String name) {
+        List<Ticket> existingTickets = Actions.findAll(Ticket.class);
+        return existingTickets.stream()
+                .anyMatch(ticket -> ticket.getName().equals(name));
+    }
+    private static boolean isTicketExists(String name, double price, Venue venue, Event event, TicketType type, int discount, int number, Person person, Coordinates coordinates) {
+        List<Ticket> existingTickets = Actions.findAll(Ticket.class);
+        List<Ticket> f = (List<Ticket>) existingTickets.stream()
+                .filter(ticket -> ticket.getName().equals(name));
+        List<Ticket> s = (List<Ticket>) f.stream()
+                .filter(ticket -> ticket.getPrice() == price);
+        List<Ticket> t = (List<Ticket>) s.stream()
+                .filter(ticket -> ticket.getVenue().equals(venue));
+        List<Ticket> fo = (List<Ticket>) t.stream()
+                .filter(ticket -> ticket.getEvent().equals(event));
+        List<Ticket> fi = (List<Ticket>) fo.stream()
+                .filter(ticket -> ticket.getType().equals(type));
+        List<Ticket> si = (List<Ticket>) fi.stream()
+                .filter(ticket -> ticket.getDiscount() == discount);
+        List<Ticket> se = (List<Ticket>) t.stream()
+                .filter(ticket -> ticket.getNumber()== number);
+        List<Ticket> e = (List<Ticket>) fo.stream()
+                .filter(ticket -> ticket.getPerson().equals(person));
+        return fi.stream()
+                .anyMatch(ticket -> ticket.getCoordinates().equals(coordinates));
+    }
+
     public static void update(Object o) {
+        FacesContext facesContext = FacesContext.getCurrentInstance();
         Change change = new Change();
         change.setEntity(o.getClass().getName());
         change.setOwner(null);
@@ -49,18 +74,26 @@ public class Actions {
         try {
             em.getTransaction().begin();
             em.merge(o);
+            if (o.getClass().equals(Ticket.class) && isTicketNameExists(((Ticket) o).getName())) {
+                facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
+                        "Ticket с таким name уже существует: " + ((Ticket) o).getName(), null));
+                throw new Exception("Ticket с таким name уже существует в import файле: " + ((Ticket) o).getName());
+            }
+//            if (o.getClass().equals(Ticket.class) && isTicketExists(((Ticket) o).getName(), ((Ticket) o).getPrice(), ((Ticket) o).getVenue(), ((Ticket) o).getEvent(), ((Ticket) o).getType(),
+//                    ((Ticket) o).getDiscount(), ((Ticket) o).getNumber(), ((Ticket) o).getPerson(), ((Ticket) o).getCoordinates())){
+//                throw new Exception("Ticket уже существует");
+//            }
             em.getTransaction().commit();
         } catch (Exception e) {
             if (em.getTransaction().isActive()) {
                 em.getTransaction().rollback();
             }
-            throw e;
         } finally {
             em.close();
         }
     }
 
-    public static void addMain(Object o){
+    public static void addMain(Object o) {
         EntityManager em = emf.createEntityManager();
         try {
             em.getTransaction().begin();
@@ -72,14 +105,14 @@ public class Actions {
                 em.getTransaction().rollback();
             }
             throw e;
-        }
-        finally {
+        } finally {
             em.close();
         }
     }
 
-    public static void add(Object o){
-        if (!o.getClass().equals(Change.class) && !o.getClass().equals(Import.class)){
+    public static void add(Object o) {
+        FacesContext facesContext = FacesContext.getCurrentInstance();
+        if (!o.getClass().equals(Change.class) && !o.getClass().equals(Import.class)) {
             Change change = new Change();
             change.setEntity(o.getClass().getName());
             change.setOwner(null);
@@ -91,21 +124,24 @@ public class Actions {
         try {
             em.getTransaction().begin();
             em.merge(o);
+            if (o.getClass().equals(Ticket.class) && isTicketNameExists(((Ticket) o).getName())) {
+                facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
+                        "Ticket с таким name уже существует: " + ((Ticket) o).getName(), null));
+                throw new Exception("Ticket с таким name уже существует в import файле: " + ((Ticket) o).getName());
+            }
             em.getTransaction().commit();
 
         } catch (Exception e) {
             if (em.getTransaction().isActive()) {
                 em.getTransaction().rollback();
             }
-            throw e;
-        }
-        finally {
+        } finally {
             em.close();
         }
     }
 
-    public static void addCommit(Object o){
-        if (!o.getClass().equals(Change.class) && !o.getClass().equals(Import.class)){
+    public static void addCommit(Object o) {
+        if (!o.getClass().equals(Change.class) && !o.getClass().equals(Import.class)) {
             Change change = new Change();
             change.setEntity(o.getClass().getName());
             change.setOwner(null);
@@ -125,8 +161,8 @@ public class Actions {
         }
     }
 
-
-    public static void delete(Object o) {
+    public static void delete(Object o){
+        FacesContext facesContext = FacesContext.getCurrentInstance();
         Change change = new Change();
         change.setEntity(o.getClass().getName());
         change.setOwner(null);
@@ -134,17 +170,23 @@ public class Actions {
         change.setChangeDate(new Date());
         add(change);
         EntityManager em = emf.createEntityManager();
-        System.out.println("Attempting to remove item: " + o);
         try {
             em.getTransaction().begin();
+            if (o.getClass().equals(Ticket.class) && !isTicketNameExists(((Ticket) o).getName())) {
+                throw new Exception("Ticket has already been removed");
+            }
             em.remove(em.merge(o));
+            facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_INFO,
+                    "Ticket removed", null));
+            System.out.println("Ticket removed");
             em.getTransaction().commit();
         } catch (Exception e) {
+            facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
+                    "Ticket has already been removed", null));
+            System.out.println("Ticket has already been removed");
             if (em.getTransaction().isActive()) {
                 em.getTransaction().rollback();
-                System.err.println("Error during deletion: " + e.getMessage());
             }
-            throw e;
         } finally {
             em.close();
         }
@@ -161,6 +203,7 @@ public class Actions {
 
     public static User getUserByLogin(String login) {
         List<User> users = findAll(User.class);
+        System.out.println(users);
         Optional<User> res = users.stream().filter(u -> u.getLogin().equals(login)).findFirst();
         return res.orElse(null);
     }
@@ -172,12 +215,12 @@ public class Actions {
         List<T> res = em.createQuery("select o from " + classname.getName() + " o order by o.id").getResultList();
         em.getTransaction().commit();
         em.close();
-        
+
         return res;
     }
 
     @SuppressWarnings("unused")
-    private static void refresh(){
+    private static void refresh() {
         emf.getCache().evictAll();
     }
 
@@ -291,13 +334,13 @@ public class Actions {
                         return ticket.getVenue().getId() == id;
                     } else if (Event.class.equals(classname)) {
                         return ticket.getEvent().getId() == id;
-                    } else if (Person.class.equals(classname)){
+                    } else if (Person.class.equals(classname)) {
                         return ticket.getPerson().getId() == id;
                     }
                     return false;
                 })
                 .collect(Collectors.toList());
-            }
+    }
 
     public static <T> List<Venue> findVenueByClassId(Class<T> classname, long id) {
         return findAll(Venue.class).stream()

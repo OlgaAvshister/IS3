@@ -11,42 +11,42 @@
 <h:head><title></title></h:head>
 <h:body>
     <ui:composition>
-        <div style="text-align: right;">
-            <h:outputLabel value="User: #{userBean.user.login}" />
-            <p:commandButton value="logout" action="#{userBean.logout}" />
+        <div id="userInfo" style="text-align: right;">
+            <h:outputLabel id="userLabel" value="User: #{userBean.user.login}" />
+            <p:commandButton id="logoutButton" value="logout" action="#{userBean.logout}" />
         </div>
         <h:form id="includeForm">
-            <p:commandButton value="Tickets" action="#{menuBean.goTicket}"
+            <p:commandButton id="ticketsButton" value="Tickets" action="#{menuBean.goTicket}"
                              update="@form"
             />
-            <p:commandButton value="Coordinates" action="#{menuBean.goCoordinates}"
+            <p:commandButton id="coordinatesButton" value="Coordinates" action="#{menuBean.goCoordinates}"
                              update="@form"
             />
-            <p:commandButton value="Person" action="#{menuBean.goPerson}"
+            <p:commandButton id="personButton" value="Person" action="#{menuBean.goPerson}"
                              update="@form"
             />
-            <p:commandButton value="Event" action="#{menuBean.goEvent}"
+            <p:commandButton id="eventButton" value="Event" action="#{menuBean.goEvent}"
                              update="@form"
             />
-            <p:commandButton value="Venue" action="#{menuBean.goVenue}"
+            <p:commandButton id="venueButton" value="Venue" action="#{menuBean.goVenue}"
                              update="@form"
             />
-            <p:commandButton value="Location" action="#{menuBean.goLocation}"
+            <p:commandButton id="locationButton" value="Location" action="#{menuBean.goLocation}"
                              update="@form"
             />
-            <p:commandButton value="Address" action="#{menuBean.goAddress}"
+            <p:commandButton id="addressButton" value="Address" action="#{menuBean.goAddress}"
                              update="@form">
             </p:commandButton>
             <c:if test="#{userBean.user.admin}">
-                <p:commandButton value="User" action="#{menuBean.goUsers}"
+                <p:commandButton id="userButton" value="User" action="#{menuBean.goUsers}"
                                  update="@form"
                 />
             </c:if>
-            <p:commandButton value="Extra" action="#{menuBean.goExtra}"
+            <p:commandButton id="extraButton" value="Extra" action="#{menuBean.goExtra}"
                              update="@form"
             />
-            <p:commandButton value="Changes" action="#{menuBean.goChanges}" update="@form"/>
-            <p:commandButton value="Imports" action="#{menuBean.goImports}" update="@form"/>
+            <p:commandButton id="changesButton" value="Changes" action="#{menuBean.goChanges}" update="@form"/>
+            <p:commandButton id="importsButton" value="Imports" action="#{menuBean.goImports}" update="@form"/>
         </h:form>
     </ui:composition>
 

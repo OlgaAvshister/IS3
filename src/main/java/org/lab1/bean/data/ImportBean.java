@@ -66,7 +66,7 @@ public class ImportBean extends UsedManagerBean<Import> {
         initTransactionalClasses();
     }
 
-    @TransactionAttribute(TransactionAttributeType.REQUIRED)
+//    @TransactionAttribute(TransactionAttributeType.REQUIRED)
     public String commit(List<Ticket> tickets, UploadedFile file) throws Exception {
         boolean simulateError = false;
         String bucketName = "bucket";
@@ -113,14 +113,18 @@ public class ImportBean extends UsedManagerBean<Import> {
     @TransactionAttribute(TransactionAttributeType.REQUIRED)
     public void saveTickets(List<Ticket> tickets) throws Exception {
         List<Ticket> madeTickets = new ArrayList<>();
-
+        FacesContext facesContext = FacesContext.getCurrentInstance();
         for (Ticket ticket : tickets) {
             if (isTicketNameExists(ticket.getName())) {
+                facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
+                        "Ticket с таким name уже существует: " + ticket.getName(), null));
                 throw new Exception("Ticket с таким name уже существует: " + ticket.getName());
             }
 
             for (Ticket madeTicket : madeTickets) {
                 if (madeTicket.getName().equals(ticket.getName())) {
+                    facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
+                            "Ticket с таким name уже существует в import файле: " + ticket.getName(), null));
                     throw new Exception("Ticket с таким name уже существует в import файле: " + ticket.getName());
                 }
             }
@@ -150,7 +154,7 @@ public class ImportBean extends UsedManagerBean<Import> {
         }
     }
 
-    public void importDataFromUpload() throws SystemException {
+    public void importDataFromUpload() throws Exception {
         System.out.println("importDataFromUpload called");
         try {
             if (xmlFile == null) {
@@ -181,8 +185,6 @@ public class ImportBean extends UsedManagerBean<Import> {
                     new FacesMessage(FacesMessage.SEVERITY_ERROR, e.getMessage(), ""));
         }
     }
-
-
 
 
     private boolean isTicketNameExists(String name) {

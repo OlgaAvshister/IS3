@@ -22,7 +22,7 @@ public class UserManagerBean {
         Actions.delete(user);
     }
 
-    public void acceptRequest(User user){
+    public void acceptRequest(User user) {
         user.setNotMain(false);
         Actions.update(user);
     }

@@ -42,14 +42,13 @@ public class Ticket implements Identable, Ownerable {
     @Setter
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @XmlTransient
-    private Integer id; // Must be greater than 0, unique, and generated automatically
+    private Long id; // Must be greater than 0, unique, and generated automatically
 
     @Column(nullable = false, unique = true)
     @NotEmpty(message = "Name cannot be empty")
     @XmlElement
     private String name; // Cannot be null, string cannot be empty
 
-//    @ManyToOne(cascade = CascadeType.ALL)
     @ManyToOne(cascade = CascadeType.MERGE)
     @JoinColumn(name = "coordinates_id", nullable = false)
     @XmlElement
@@ -78,7 +77,6 @@ public class Ticket implements Identable, Ownerable {
     private TicketType type; // Cannot be null
 
     @ManyToOne(cascade = CascadeType.MERGE)
-//    @ManyToOne
     @JoinColumn(name = "venue_id", nullable = false)
     @XmlElement
     private Venue venue; // Cannot be null
@@ -92,7 +90,6 @@ public class Ticket implements Identable, Ownerable {
     private Integer number = 1; // Must be greater than 0
 
     @ManyToOne(cascade = CascadeType.MERGE)
-//    @ManyToOne
     @JoinColumn(name = "event_id", nullable = false)
     @XmlElement
     private Event event; // Cannot be null
@@ -103,7 +100,6 @@ public class Ticket implements Identable, Ownerable {
 
     @Setter
     @ManyToOne(cascade = CascadeType.MERGE)
-//    @ManyToOne
     @JoinColumn(name = "person_id")
     @XmlElement
     private Person person;
@@ -120,7 +116,7 @@ public class Ticket implements Identable, Ownerable {
 
     @PrePersist
     public void onPrePersist() {
-        this.creationDate = new Date(); // Устанавливаем дату перед сохранением объекта
+        this.creationDate = new Date();
     }
 
 

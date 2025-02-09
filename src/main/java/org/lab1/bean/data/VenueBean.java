@@ -30,7 +30,7 @@ public class VenueBean extends UsedManagerBean<Venue> {
     }
 
     @Override
-    public void addItem() {
+    public void addItem()  {
         Venue selectedItem = super.itemsStack.peek();
 
         FacesContext facesContext = FacesContext.getCurrentInstance();

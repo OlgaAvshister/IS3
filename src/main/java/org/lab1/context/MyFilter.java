@@ -17,6 +17,7 @@ public class MyFilter implements Filter {
         HttpServletRequest httpRequest = (HttpServletRequest) request;
         HttpServletResponse httpResponse = (HttpServletResponse) response;
         String currentPage = httpRequest.getRequestURI();
+        System.out.println(httpRequest);
         System.out.println("Current page being requested: " + currentPage);
         UserBean userBean = (UserBean) httpRequest.getSession().getAttribute("userBean");
         if (userBean == null || userBean.getId() == 0) {

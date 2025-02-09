@@ -5,106 +5,120 @@
       xmlns:h="http://xmlns.jcp.org/jsf/html"
       xmlns:ui="http://xmlns.jcp.org/jsf/facelets"
       xmlns:p="http://primefaces.org/ui" xmlns:f="http://java.sun.com/jsf/core"
-      xmlns:c="http://java.sun.com/jsp/jstl/core"     
+      xmlns:c="http://java.sun.com/jsp/jstl/core"
       xml:lang="EN">
 <h:head><title></title></h:head>
 <h:body>
     <ui:composition>
 
-        <p:dataTable var="ticket" value="#{bean.items}"
+        <p:dataTable id="ticketDataTable" var="ticket" value="#{bean.items}"
                      paginator="true" rows="5"
                      paginatorTemplate="{RowsPerPageDropdown} {FirstPageLink} {PreviousPageLink} {CurrentPageReport} {NextPageLink} {LastPageLink}"
                      rowsPerPageTemplate="5,10,15">
 
             <p:column
+                    id="colId"
                     headerText="ID"
                     sortBy="#{ticket.id}"
                     filterBy="#{ticket.id}"
                     filterMatchMode="contains">
-                <h:outputText value="#{ticket.id}"/>
+                <h:outputText id="txtId" value="#{ticket.id}"/>
             </p:column>
 
             <p:column
+                    id="colName"
                     headerText="Name"
                     sortBy="#{ticket.name}"
                     filterBy="#{ticket.name}"
                     filterMatchMode="contains">
-                <h:outputText value="#{ticket.name}"/>
+                <h:outputText id="txtName" value="#{ticket.name}"/>
             </p:column>
 
             <p:column
+                    id="colCoordinates"
                     headerText="Coordinates"
                     sortBy="#{ticket.coordinates.id}"
                     filterBy="#{ticket.coordinates.id}"
                     filterMatchMode="contains">
-                <h:outputText value="#{ticket.coordinates.id}"/>
+                <h:outputText id="txtCoordinates" value="#{ticket.coordinates.id}"/>
             </p:column>
 
             <p:column
+                    id="colCreationDate"
                     headerText="Creation date"
                     sortBy="#{ticket.creationDate}"
                     filterBy="#{ticket.creationDate}"
                     filterMatchMode="contains">
-                <h:outputText value="#{ticket.creationDate}"/>
+                <h:outputText id="txtCreationDate" value="#{ticket.creationDate}"/>
             </p:column>
 
             <p:column
+                    id="colPerson"
                     headerText="Person"
                     sortBy="#{ticket.person.id}"
                     filterBy="#{ticket.person.id}"
                     filterMatchMode="contains">
-                <h:outputText value="#{ticket.person.id}"/>
+                <h:outputText id="txtPerson" value="#{ticket.person.id}"/>
             </p:column>
 
             <p:column
+                    id="colEvent"
                     headerText="Event"
                     sortBy="#{ticket.event.name}"
                     filterBy="#{ticket.event.name}"
                     filterMatchMode="contains">
-                <h:outputText value="#{ticket.event.name}"/>
+                <h:outputText id="txtEvent" value="#{ticket.event.name}"/>
             </p:column>
 
             <p:column
+                    id="colPrice"
                     headerText="Price"
                     sortBy="#{ticket.price}"
                     filterBy="#{ticket.price}"
                     filterMatchMode="contains">
-                <h:outputText value="#{ticket.price}"/>
+                <h:outputText id="txtPrice" value="#{ticket.price}"/>
             </p:column>
 
             <p:column
+                    id="colTicketType"
                     headerText="Ticket type"
                     sortBy="#{ticket.type}"
                     filterBy="#{ticket.type}"
                     filterMatchMode="contains">
-                <h:outputText value="#{ticket.type}"/>
+                <h:outputText id="txtTicketType" value="#{ticket.type}"/>
             </p:column>
 
             <p:column
+                    id="colDiscount"
                     headerText="Discount"
                     sortBy="#{ticket.discount}"
                     filterBy="#{ticket.discount}"
                     filterMatchMode="contains">
-                <h:outputText value="#{ticket.discount}"/>
+                <h:outputText id="txtDiscount" value="#{ticket.discount}"/>
             </p:column>
+
             <p:column
+                    id="colNumber"
                     headerText="Number"
                     sortBy="#{ticket.number}"
                     filterBy="#{ticket.number}"
                     filterMatchMode="contains">
-                <h:outputText value="#{ticket.number}"/>
+                <h:outputText id="txtNumber" value="#{ticket.number}"/>
             </p:column>
+
             <p:column
+                    id="colVenue"
                     headerText="Venue"
                     sortBy="#{ticket.venue.id}"
                     filterBy="#{ticket.venue.id}"
                     filterMatchMode="contains">
-                <h:outputText value="#{ticket.venue.id}"/>
+                <h:outputText id="txtVenue" value="#{ticket.venue.id}"/>
             </p:column>
 
             <c:if test="${needEdit}">
-                <p:column headerText="Edit">
+                <p:column id="colEdit" headerText="Edit">
                     <p:commandButton
+                            id="btnEdit"
                             value="edit"
                             rendered="#{userBean.admin || userBean.id == ticket.owner.id}"
                             action="#{bean.setSelectedItem(ticket)}"
@@ -114,8 +128,7 @@
                 </p:column>
             </c:if>
         </p:dataTable>
-
-
+        <p:messages id="messages" globalOnly="false" showDetail="true" showSummary="true"/>
     </ui:composition>
 </h:body>
 </html>

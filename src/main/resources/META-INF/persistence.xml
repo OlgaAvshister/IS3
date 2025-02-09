@@ -22,6 +22,10 @@
             <property name="javax.persistence.jdbc.password" value="Ol14avma29"/>
             <property name="javax.persistence.jdbc.driver" value="org.postgresql.Driver"/>
             <property name="hibernate.dialect" value="org.hibernate.dialect.PostgreSQLDialect"/>
+            <property name="hibernate.connection.pool_size" value="100"/>
+            <property name="hibernate.show_sql" value="false"/>
+            <property name="hibernate.format_sql" value="false"/>
+            <property name="hibernate.use_sql_comments" value="false"/>
         </properties>
     </persistence-unit>
 </persistence>

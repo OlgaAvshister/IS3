@@ -28,7 +28,7 @@ public abstract class UsedManagerBean<T extends Ownerable & Identable> extends M
     public void removeItem() {
         T stackItem = super.itemsStack.pop();
         try {
-            System.out.println(stackItem);
+            System.out.println(stackItem.getClass());
             Actions.delete(stackItem);
         } catch (Exception e) {
             FacesContext facesContext = FacesContext.getCurrentInstance();

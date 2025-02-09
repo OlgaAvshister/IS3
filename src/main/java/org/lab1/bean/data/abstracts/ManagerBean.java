@@ -1,26 +1,30 @@
 package org.lab1.bean.data.abstracts;
 
+import lombok.Data;
+import org.lab1.bean.auth.UserBean;
+import org.lab1.bean.data.Identable;
+import org.lab1.bean.data.TicketBean;
+import org.lab1.context.MyException;
+import org.lab1.data.Actions;
+import org.lab1.data.entity.Ownerable;
+import org.lab1.data.entity.Ticket;
+import org.lab1.data.entity.User;
+import org.primefaces.PrimeFaces;
+
+import javax.ejb.TransactionAttribute;
+import javax.faces.application.FacesMessage;
+import javax.faces.bean.ManagedBean;
+import javax.faces.bean.SessionScoped;
+import javax.faces.context.FacesContext;
+import javax.transaction.Transactional;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
 import java.util.Stack;
-import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.faces.bean.ManagedBean;
-import javax.faces.bean.SessionScoped;
-import javax.faces.context.FacesContext;
+import static org.lab1.data.Actions.find;
 
-import org.lab1.context.MyException;
-import org.lab1.data.Actions;
-import org.lab1.data.entity.Ownerable;
-import org.lab1.data.entity.User;
-import org.lab1.bean.auth.UserBean;
-import org.lab1.bean.data.Identable;
-import org.primefaces.PrimeFaces;
-
-import lombok.Data;
 @SuppressWarnings("deprecation")
 @ManagedBean(name = "managerBean")
 @SessionScoped
@@ -67,9 +71,9 @@ public abstract class ManagerBean<T extends Ownerable & Identable> {
         Actions.add(stackItem);
     }
 
-    protected User getCurrentOwner(){
-        Map<String, Object> session =  FacesContext.getCurrentInstance().getExternalContext().getSessionMap();
-        return Actions.find(User.class, ((UserBean) session.get("userBean")).getId());
+    protected User getCurrentOwner() {
+        Map<String, Object> session = FacesContext.getCurrentInstance().getExternalContext().getSessionMap();
+        return find(User.class, ((UserBean) session.get("userBean")).getId());
     }
 
 
@@ -84,7 +88,7 @@ public abstract class ManagerBean<T extends Ownerable & Identable> {
         return Actions.findAll(classType);
     }
 
-    public void editItem() {
+    public void editItem()  {
         T stackItem = itemsStack.pop();
         if (stackItem.getOwner() == null)
             stackItem.setOwner(getCurrentOwner());
@@ -92,12 +96,12 @@ public abstract class ManagerBean<T extends Ownerable & Identable> {
         editStack();
     }
 
-    public void freeStack(){
+    public void freeStack() {
         itemsStack.clear();
         emptyInstance();
     }
 
-    public void removeItem() {
+    public void removeItem(){
         T stackItem = itemsStack.pop();
         if (stackItem.getOwner() == null)
             stackItem.setOwner(getCurrentOwner());
@@ -105,10 +109,9 @@ public abstract class ManagerBean<T extends Ownerable & Identable> {
         editStack();
     }
 
-
     public abstract List<String> getFieldNames();
 
-    public Object getFieldValue(T item, String fieldName){
+    public Object getFieldValue(T item, String fieldName) {
         try {
             Field field = this.classType.getDeclaredField(fieldName);
             return field.get(item);

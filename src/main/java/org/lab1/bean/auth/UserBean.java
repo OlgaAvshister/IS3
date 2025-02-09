@@ -24,27 +24,29 @@ public class UserBean {
 
     public boolean validateUser() {
         User probUser = Actions.getUserByLogin(login);
+        System.out.println(probUser);
         FacesContext facesContext = FacesContext.getCurrentInstance();
         String errorMsg = "";
-        System.out.println("TRY TO LOG IN");
-        if (probUser == null)
+
+        if (probUser == null) {
             errorMsg = "Invalid login";
-        else {
+        } else {
             boolean cor = probUser.getPassword().equals(User.hashString(password));
-            if (!cor)
+            if (!cor) {
                 errorMsg = "Invalid password";
-            else if (probUser.isNotMain())
+            } else if (probUser.isNotMain()) {
                 errorMsg = "Admin is checking your request";
+            } else {
+                errorMsg = "Logged in";
+            }
         }
-        if (!errorMsg.isEmpty()) {
-            facesContext.addMessage(":loginForm:loginPanel", new FacesMessage(FacesMessage.SEVERITY_ERROR, errorMsg, null));
-            return false;
-        }
+        facesContext.addMessage(":loginForm:loginPanel", new FacesMessage(FacesMessage.SEVERITY_ERROR, errorMsg, null));
         user = probUser;
         id = probUser.getId();
         isAdmin = probUser.isAdmin();
-        return true;
+        return "Logged in".equals(errorMsg);
     }
+
 
     public User toEntity() {
         User newUser = new User();

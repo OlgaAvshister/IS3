@@ -12,15 +12,15 @@
     <h:form id="loginForm">
         <p:growl id="growl" showDetail="true" life="3000" />
         <p:panel id="loginPanel" header="Login">
-            <h:panelGrid columns="3" cellpadding="5">
-                <h:outputLabel for="username" value="Username:" />
+            <h:panelGrid id="loginGrid" columns="3" cellpadding="5">
+                <h:outputLabel id="usernameLabel" for="username" value="Username:" />
                 <p:inputText id="username" value="#{userBean.login}" required="true" />
-                <p:message for="username" />
-                <h:outputLabel for="password" value="Password:" />
+                <p:message id="usernameMessage" for="username" />
+                <h:outputLabel id="passwordLabel" for="password" value="Password:" />
                 <p:password id="password" value="#{userBean.password}" required="true" />
-                <p:message for="password" />
+                <p:message id="passwordMessage" for="password" />
             </h:panelGrid>
-            <p:commandButton value="Login" action="#{userBean.validateUser}" update="growl" />
+            <p:commandButton id="submit" value="Login" action="#{userBean.validateUser}" update="growl" />
         </p:panel>
         <p:message id="authMessage" for="loginPanel"/>
     </h:form>

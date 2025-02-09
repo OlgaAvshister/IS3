@@ -1,27 +1,24 @@
 package org.lab1.bean.data;
 
 
-import java.util.Date;
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
+import lombok.Getter;
+import lombok.Setter;
+import org.lab1.bean.data.abstracts.ManagerBean;
+import org.lab1.data.Actions;
+import org.lab1.data.entity.*;
+import org.lab1.data.entity.enums.TicketType;
 
 import javax.faces.application.FacesMessage;
 import javax.faces.bean.ManagedBean;
 import javax.faces.bean.SessionScoped;
 import javax.faces.context.FacesContext;
+import java.lang.reflect.Type;
+import java.util.Date;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import org.lab1.bean.data.abstracts.UsedManagerBean;
-import org.lab1.data.Actions;
-import org.lab1.data.entity.Coordinates;
-import org.lab1.data.entity.Event;
-import org.lab1.data.entity.Person;
-import org.lab1.data.entity.Ticket;
-import org.lab1.data.entity.Venue;
-import org.lab1.bean.data.abstracts.ManagerBean;
-
-import lombok.Getter;
-import lombok.Setter;
 @SuppressWarnings("deprecation")
 @ManagedBean(name = "ticketBean")
 @SessionScoped
@@ -34,7 +31,7 @@ public class TicketBean extends ManagerBean<Ticket> {
     }
 
     @Override
-    public void addItem() {
+    public void addItem()  {
         Ticket selectedItem = super.itemsStack.peek();
 
         FacesContext facesContext = FacesContext.getCurrentInstance();
@@ -59,8 +56,7 @@ public class TicketBean extends ManagerBean<Ticket> {
         if (isTicketNameExists(selectedItem.getName())) {
             facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
                     "Ticket с таким name уже существует: " + selectedItem.getName(), null));
-            return;
-        }
+            }
 
         Person selectedPerson = Actions.find(Person.class, selectedItem.getPassedPersonId());
         selectedItem.setPerson(selectedPerson);
@@ -86,7 +82,6 @@ public class TicketBean extends ManagerBean<Ticket> {
     @Override
     public void editItem() {
         Ticket selectedItem = super.itemsStack.peek();
-
         assert selectedItem != null;
         if (!Objects.equals(selectedItem.getPassedPersonId(), selectedItem.getPerson().getId())) {
             Person selectedPerson = Actions.find(Person.class, selectedItem.getPassedPersonId());
@@ -120,7 +115,7 @@ public class TicketBean extends ManagerBean<Ticket> {
     @Override
     public void emptyInstance() {
         super.getItemsStack().push(new Ticket());
-        super.getStackItem().setId(0);
+        super.getStackItem().setId(0L);
         super.getStackItem().setCreationDate(new Date());
         super.getStackItem().setPerson(new Person());
         super.getStackItem().setCoordinates(
