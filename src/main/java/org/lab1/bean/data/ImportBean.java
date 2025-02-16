@@ -22,6 +22,7 @@ import javax.faces.application.FacesMessage;
 import javax.faces.bean.ManagedBean;
 import javax.faces.bean.RequestScoped;
 import javax.faces.context.FacesContext;
+import javax.naming.InitialContext;
 import javax.transaction.TransactionManager;
 import javax.transaction.UserTransaction;
 import java.io.InputStream;
@@ -30,11 +31,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import javax.ejb.Stateless;
 
 @ManagedBean(name = "importBean")
 @RequestScoped
 @Getter
 @Setter
+//@Stateless
 public class ImportBean extends UsedManagerBean<Import> {
     private String itemName = "import";
     private UploadedFile xmlFile;
@@ -47,7 +50,6 @@ public class ImportBean extends UsedManagerBean<Import> {
     private MinioClient minioClient;
     private UserTransaction utx = null;
     private TransactionManager tm = null;
-
 
     public ImportBean() {
         super(Import.class, "import");
@@ -62,28 +64,38 @@ public class ImportBean extends UsedManagerBean<Import> {
         initTransactionalClasses();
     }
 
-    @TransactionAttribute(TransactionAttributeType.REQUIRED)
+//    @TransactionAttribute(TransactionAttributeType.REQUIRED)
     public String commit(List<Ticket> tickets, UploadedFile file) throws Exception {
         boolean simulateError = false;
         String bucketName = "bucket";
+        String fileName = currentImport.getOwner().getLogin() + "_" + System.currentTimeMillis() + "/" +
+                Objects.requireNonNull(file.getFileName());
+
+        this.utx = getUserTransaction();
+        utx.begin();
+
         try {
-            if (simulateError) {
-                throw new RuntimeException("Какая-то ошибка в бизнес логике -> rollback транзакции");
-            }
             saveTickets(tickets);
+            System.out.println("tickets saved");
+            try {
+                if (simulateError) {
+                    throw new RuntimeException("Какая-то ошибка в бизнес логике -> rollback транзакции");
+                }
 
-            String fileName = currentImport.getOwner().getLogin() + "_" + System.currentTimeMillis() + "/" +
-                    Objects.requireNonNull(file.getFileName());
-            InputStream fileInputStream = file.getInputStream();
-            long fileSize = file.getSize();
+                InputStream fileInputStream = file.getInputStream();
+                long fileSize = file.getSize();
 
-            minioClient.putObject(
-                    PutObjectArgs.builder()
-                            .bucket(bucketName)
-                            .object(fileName)
-                            .stream(fileInputStream, fileSize, -1)
-                            .build()
-            );
+                minioClient.putObject(
+                        PutObjectArgs.builder()
+                                .bucket(bucketName)
+                                .object(fileName)
+                                .stream(fileInputStream, fileSize, -1)
+                                .build()
+                );
+            } catch (Exception e) {
+                utx.rollback();
+                throw e;
+            }
 
             String fileUrlAfterSave = minioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
@@ -91,6 +103,10 @@ public class ImportBean extends UsedManagerBean<Import> {
                             .bucket(bucketName)
                             .object(fileName)
                             .build());
+
+            System.out.println("Start commit...");
+
+            utx.commit();
             return fileUrlAfterSave;
 //            } catch (RuntimeException e) {
 //                System.err.println("RuntimeException occurred: " + e.getMessage());
@@ -101,6 +117,7 @@ public class ImportBean extends UsedManagerBean<Import> {
 //            }
         } catch (Exception e) {
             System.err.println("Transaction failed: " + e.getMessage());
+            utx.rollback();
             throw e;
         }
     }
@@ -151,29 +168,30 @@ public class ImportBean extends UsedManagerBean<Import> {
 
     public void importDataFromUpload() throws Exception {
         System.out.println("importDataFromUpload called");
+        currentImport.setOwner(getCurrentOwner());
+        currentImport.setStatus(ImportStatus.FAILED);
         try {
             if (xmlFile == null) {
                 throw new Exception("No file uploaded!");
             }
             System.out.println("File uploaded");
-            tm.begin();
-            currentImport.setOwner(getCurrentOwner());
+//            tm.begin();
             List<Ticket> tickets = loader.loadTicketsFromFile(xmlFile);
+
             String fileUrl = commit(tickets, xmlFile);
 
             currentImport.setFileUrl(fileUrl);
-            currentImport.setCreatedEntitiesCount((long) tickets.size());
             currentImport.setStatus(ImportStatus.FINISHED);
+            currentImport.setCreatedEntitiesCount((long) tickets.size());
             currentImport.setMessage("Import completed successfully");
             Actions.addCommit(currentImport);
             FacesContext.getCurrentInstance().addMessage(null,
                     new FacesMessage(FacesMessage.SEVERITY_INFO, "Import successful", null));
             System.out.println("Ticket saved successfully.");
-            tm.commit();
+//            tm.commit();
         } catch (Exception e) {
             System.out.println("Import error: " + e);
-            tm.rollback();
-            currentImport.setStatus(ImportStatus.FAILED);
+//            tm.rollback();
             currentImport.setMessage(e.getMessage());
             Actions.add(currentImport);
             FacesContext.getCurrentInstance().addMessage(null,
@@ -285,6 +303,10 @@ public class ImportBean extends UsedManagerBean<Import> {
                 .endpoint("http://localhost:9000")
                 .credentials("minioadmin", "minioadmin")
                 .build();
+    }
+
+    public UserTransaction getUserTransaction() throws Exception {
+        return (UserTransaction) new InitialContext().lookup("java:comp/UserTransaction");
     }
 
     private void initTransactionalClasses() {
