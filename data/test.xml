@@ -1,6 +1,6 @@
 <tickets>
     <ticket>
-        <name>2070</name>
+        <name>101</name>
         <coordinates>
             <x>5</x>
             <y>5</y>
@@ -11,7 +11,7 @@
         <number>5</number>
         <venue>
             <name>test6</name>
-            <capacity>100</capacity>
+            <capacity>101</capacity>
             <type>CINEMA</type>
             <address>
                 <street>test6</street>

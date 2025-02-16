@@ -10,12 +10,14 @@ import javax.faces.application.FacesMessage;
 import javax.faces.context.ExternalContext;
 import javax.faces.context.FacesContext;
 
+import org.hibernate.exception.ConstraintViolationException;
 import org.lab1.context.MyException;
 import org.lab1.data.Actions;
 import org.lab1.data.entity.Ownerable;
 import org.lab1.data.entity.Ticket;
 import org.lab1.bean.data.Identable;
 import org.lab1.bean.data.TicketBean;
+import org.postgresql.util.PSQLException;
 
 public abstract class UsedManagerBean<T extends Ownerable & Identable> extends ManagerBean<T> {
     private static final Logger logger = Logger.getLogger(UsedManagerBean.class.getName());
@@ -30,7 +32,7 @@ public abstract class UsedManagerBean<T extends Ownerable & Identable> extends M
         try {
             System.out.println(stackItem.getClass());
             Actions.delete(stackItem);
-        } catch (Exception e) {
+        } catch (ConstraintViolationException | PSQLException e) {
             FacesContext facesContext = FacesContext.getCurrentInstance();
             T searchedItem = Actions.find(super.classType, stackItem.getId());
             if (searchedItem == null) {

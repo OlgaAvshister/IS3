@@ -22,11 +22,7 @@ import javax.faces.application.FacesMessage;
 import javax.faces.bean.ManagedBean;
 import javax.faces.bean.RequestScoped;
 import javax.faces.context.FacesContext;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
-import javax.transaction.SystemException;
 import javax.transaction.TransactionManager;
-import javax.transaction.Transactional;
 import javax.transaction.UserTransaction;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -66,7 +62,7 @@ public class ImportBean extends UsedManagerBean<Import> {
         initTransactionalClasses();
     }
 
-//    @TransactionAttribute(TransactionAttributeType.REQUIRED)
+    @TransactionAttribute(TransactionAttributeType.REQUIRED)
     public String commit(List<Ticket> tickets, UploadedFile file) throws Exception {
         boolean simulateError = false;
         String bucketName = "bucket";
@@ -76,34 +72,33 @@ public class ImportBean extends UsedManagerBean<Import> {
             }
             saveTickets(tickets);
 
-            try {
-                String fileName = currentImport.getOwner().getLogin() + "_" + System.currentTimeMillis() + "/" +
-                        Objects.requireNonNull(file.getFileName());
-                InputStream fileInputStream = file.getInputStream();
-                long fileSize = file.getSize();
+            String fileName = currentImport.getOwner().getLogin() + "_" + System.currentTimeMillis() + "/" +
+                    Objects.requireNonNull(file.getFileName());
+            InputStream fileInputStream = file.getInputStream();
+            long fileSize = file.getSize();
 
-                minioClient.putObject(
-                        PutObjectArgs.builder()
-                                .bucket(bucketName)
-                                .object(fileName)
-                                .stream(fileInputStream, fileSize, -1)
-                                .build()
-                );
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(fileName)
+                            .stream(fileInputStream, fileSize, -1)
+                            .build()
+            );
 
-                String fileUrlAfterSave = minioClient.getPresignedObjectUrl(
-                        GetPresignedObjectUrlArgs.builder()
-                                .method(Method.GET)
-                                .bucket(bucketName)
-                                .object(fileName)
-                                .build());
-                return fileUrlAfterSave;
-            } catch (RuntimeException e) {
-                System.err.println("RuntimeException occurred: " + e.getMessage());
-                throw e;
-            } catch (Exception e) {
-                System.err.println("Exception occurred: " + e.getMessage());
-                throw e;
-            }
+            String fileUrlAfterSave = minioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .method(Method.GET)
+                            .bucket(bucketName)
+                            .object(fileName)
+                            .build());
+            return fileUrlAfterSave;
+//            } catch (RuntimeException e) {
+//                System.err.println("RuntimeException occurred: " + e.getMessage());
+//                throw e;
+//            } catch (Exception e) {
+//                System.err.println("Exception occurred: " + e.getMessage());
+//                throw e;
+//            }
         } catch (Exception e) {
             System.err.println("Transaction failed: " + e.getMessage());
             throw e;

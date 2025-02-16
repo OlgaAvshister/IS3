@@ -9,6 +9,7 @@ import org.lab1.data.Actions;
 import org.lab1.data.entity.Ownerable;
 import org.lab1.data.entity.Ticket;
 import org.lab1.data.entity.User;
+import org.postgresql.util.PSQLException;
 import org.primefaces.PrimeFaces;
 
 import javax.ejb.TransactionAttribute;
@@ -101,7 +102,7 @@ public abstract class ManagerBean<T extends Ownerable & Identable> {
         emptyInstance();
     }
 
-    public void removeItem(){
+    public void removeItem() throws PSQLException {
         T stackItem = itemsStack.pop();
         if (stackItem.getOwner() == null)
             stackItem.setOwner(getCurrentOwner());

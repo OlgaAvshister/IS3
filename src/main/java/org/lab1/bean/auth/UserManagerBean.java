@@ -8,6 +8,7 @@ import javax.faces.bean.ManagedBean;
 
 import org.lab1.data.Actions;
 import org.lab1.data.entity.User;
+import org.postgresql.util.PSQLException;
 
 
 @SuppressWarnings("deprecation")
@@ -18,7 +19,7 @@ public class UserManagerBean {
         return Actions.findAll(User.class).stream().filter(User::isNotMain).collect(Collectors.toList());
     }
 
-    public void deniedRequest(User user){
+    public void deniedRequest(User user) throws PSQLException {
         Actions.delete(user);
     }
 

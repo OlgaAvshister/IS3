@@ -1,8 +1,10 @@
 package org.lab1.data;
 
 import org.hibernate.cfg.Configuration;
+import org.hibernate.exception.ConstraintViolationException;
 import org.lab1.data.entity.*;
 import org.lab1.data.entity.enums.TicketType;
+import org.postgresql.util.PSQLException;
 
 import javax.faces.application.FacesMessage;
 import javax.faces.context.FacesContext;
@@ -54,11 +56,11 @@ public class Actions {
                 .filter(ticket -> ticket.getType().equals(type));
         List<Ticket> si = (List<Ticket>) fi.stream()
                 .filter(ticket -> ticket.getDiscount() == discount);
-        List<Ticket> se = (List<Ticket>) t.stream()
+        List<Ticket> se = (List<Ticket>) si.stream()
                 .filter(ticket -> ticket.getNumber()== number);
-        List<Ticket> e = (List<Ticket>) fo.stream()
+        List<Ticket> e = (List<Ticket>) se.stream()
                 .filter(ticket -> ticket.getPerson().equals(person));
-        return fi.stream()
+        return e.stream()
                 .anyMatch(ticket -> ticket.getCoordinates().equals(coordinates));
     }
 
@@ -161,7 +163,7 @@ public class Actions {
         }
     }
 
-    public static void delete(Object o){
+    public static void delete(Object o) throws PSQLException {
         FacesContext facesContext = FacesContext.getCurrentInstance();
         Change change = new Change();
         change.setEntity(o.getClass().getName());
@@ -176,18 +178,27 @@ public class Actions {
                 throw new Exception("Ticket has already been removed");
             }
             em.remove(em.merge(o));
-            facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_INFO,
-                    "Ticket removed", null));
-            System.out.println("Ticket removed");
+            if (o.getClass().equals(Ticket.class)) {
+                facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_INFO,
+                        "Ticket removed", null));
+                System.out.println("Ticket removed");
+            }
             em.getTransaction().commit();
+        } catch (ConstraintViolationException e){
+            System.out.println(e);
+            throw e;
         } catch (Exception e) {
-            facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
-                    "Ticket has already been removed", null));
-            System.out.println("Ticket has already been removed");
+            System.out.println(e);
+            if (o.getClass().equals(Ticket.class)) {
+                facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
+                        "Ticket has already been removed", null));
+                System.out.println("Ticket has already been removed");
+            }
+        }
+        finally {
             if (em.getTransaction().isActive()) {
                 em.getTransaction().rollback();
             }
-        } finally {
             em.close();
         }
     }
