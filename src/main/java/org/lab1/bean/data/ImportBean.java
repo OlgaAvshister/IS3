@@ -16,6 +16,7 @@ import org.lab1.data.entity.User;
 import org.lab1.data.entity.enums.ImportStatus;
 import org.primefaces.model.file.UploadedFile;
 
+import javax.annotation.Resource;
 import javax.ejb.TransactionAttribute;
 import javax.ejb.TransactionAttributeType;
 import javax.faces.application.FacesMessage;
@@ -23,6 +24,7 @@ import javax.faces.bean.ManagedBean;
 import javax.faces.bean.RequestScoped;
 import javax.faces.context.FacesContext;
 import javax.naming.InitialContext;
+import javax.persistence.*;
 import javax.transaction.TransactionManager;
 import javax.transaction.UserTransaction;
 import java.io.InputStream;
@@ -48,36 +50,34 @@ public class ImportBean extends UsedManagerBean<Import> {
     private List<Import> imports;
     TicketLoader loader;
     private MinioClient minioClient;
-    private UserTransaction utx = null;
-    private TransactionManager tm = null;
+//    private TransactionManager tm = null;
 
     public ImportBean() {
         super(Import.class, "import");
         this.minioClient = getMinioClient();
         loader = new TicketLoader();
-        initTransactionalClasses();
+//        initTransactionalClasses();
     }
 
     protected ImportBean(Class<Import> classType, String name) {
         super(classType, name);
         loader = new TicketLoader();
-        initTransactionalClasses();
+//        initTransactionalClasses();
     }
-
-//    @TransactionAttribute(TransactionAttributeType.REQUIRED)
     public String commit(List<Ticket> tickets, UploadedFile file) throws Exception {
         boolean simulateError = false;
         String bucketName = "bucket";
         String fileName = currentImport.getOwner().getLogin() + "_" + System.currentTimeMillis() + "/" +
                 Objects.requireNonNull(file.getFileName());
 
-        this.utx = getUserTransaction();
-        utx.begin();
-
+        EntityManager em = PersistenceManager.getEntityManager(); // Создаем EntityManager внутри метода
+        EntityTransaction transaction = em.getTransaction(); // Получаем объект EntityTransaction
         try {
-            saveTickets(tickets);
-            System.out.println("tickets saved");
+            transaction.begin(); // Начинаем транзакцию
+
             try {
+                saveTickets(tickets, em); // Не передаем utx
+                System.out.println("tickets saved");
                 if (simulateError) {
                     throw new RuntimeException("Какая-то ошибка в бизнес логике -> rollback транзакции");
                 }
@@ -92,90 +92,49 @@ public class ImportBean extends UsedManagerBean<Import> {
                                 .stream(fileInputStream, fileSize, -1)
                                 .build()
                 );
+
+                String fileUrlAfterSave = minioClient.getPresignedObjectUrl(
+                        GetPresignedObjectUrlArgs.builder()
+                                .method(Method.GET)
+                                .bucket(bucketName)
+                                .object(fileName)
+                                .build());
+
+                currentImport.setFileUrl(fileUrlAfterSave);
+                currentImport.setStatus(ImportStatus.FINISHED);
+                currentImport.setCreatedEntitiesCount((long) tickets.size());
+                currentImport.setMessage("Import completed successfully");
+                Actions.addCommit(currentImport, em); // Не передаем utx
+
+                transaction.commit(); // Коммитим транзакцию
+                return fileUrlAfterSave;
+
             } catch (Exception e) {
-                utx.rollback();
-                throw e;
-            }
-
-            String fileUrlAfterSave = minioClient.getPresignedObjectUrl(
-                    GetPresignedObjectUrlArgs.builder()
-                            .method(Method.GET)
-                            .bucket(bucketName)
-                            .object(fileName)
-                            .build());
-
-            System.out.println("Start commit...");
-
-            utx.commit();
-            return fileUrlAfterSave;
-//            } catch (RuntimeException e) {
-//                System.err.println("RuntimeException occurred: " + e.getMessage());
-//                throw e;
-//            } catch (Exception e) {
-//                System.err.println("Exception occurred: " + e.getMessage());
-//                throw e;
-//            }
-        } catch (Exception e) {
-            System.err.println("Transaction failed: " + e.getMessage());
-            utx.rollback();
-            throw e;
-        }
-    }
-
-    @TransactionAttribute(TransactionAttributeType.REQUIRED)
-    public void saveTickets(List<Ticket> tickets) throws Exception {
-        List<Ticket> madeTickets = new ArrayList<>();
-        FacesContext facesContext = FacesContext.getCurrentInstance();
-        for (Ticket ticket : tickets) {
-            if (isTicketNameExists(ticket.getName())) {
-                facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
-                        "Ticket с таким name уже существует: " + ticket.getName(), null));
-                throw new Exception("Ticket с таким name уже существует: " + ticket.getName());
-            }
-
-            for (Ticket madeTicket : madeTickets) {
-                if (madeTicket.getName().equals(ticket.getName())) {
-                    facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
-                            "Ticket с таким name уже существует в import файле: " + ticket.getName(), null));
-                    throw new Exception("Ticket с таким name уже существует в import файле: " + ticket.getName());
+                System.err.println("Transaction failed: " + e.getMessage());
+                if (transaction.isActive()) { // Проверяем, активна ли транзакция перед откатом
+                    transaction.rollback(); // Откатываем транзакцию
                 }
+                throw e; // Важно: перебрасываем исключение, чтобы его обработал вызывающий метод
             }
 
-            ValidationResult valid = validateTicket(ticket);
-            if (valid.getIsValid()) {
-                ticket.getVenue().getAddress().setOwner(getCurrentOwner());
-                Actions.addCommit(ticket.getVenue().getAddress());
-                ticket.getVenue().setOwner(getCurrentOwner());
-                Actions.addCommit(ticket.getVenue());
-                ticket.getCoordinates().setOwner(getCurrentOwner());
-                Actions.addCommit(ticket.getCoordinates());
-                ticket.getEvent().setOwner(getCurrentOwner());
-                Actions.addCommit(ticket.getEvent());
-                ticket.getPerson().getLocation().setOwner(getCurrentOwner());
-                Actions.addCommit(ticket.getPerson().getLocation());
-                ticket.getPerson().setOwner(getCurrentOwner());
-                Actions.addCommit(ticket.getPerson());
-                ticket.setOwner(getCurrentOwner());
-                madeTickets.add(ticket);
-            } else {
-                throw new Exception("Import failed");
+        } catch (Exception e) {
+            System.err.println("Transaction failed to begin: " + e.getMessage());
+            throw e; // Важно: перебрасываем исключение, чтобы его обработал вызывающий метод
+
+        } finally {
+            if (em != null && em.isOpen()) {
+                em.close(); // Закрываем EntityManager в finally в том же методе, где началась транзакция
             }
         }
-        for (Ticket ticket : madeTickets) {
-            Actions.add(ticket);
-        }
-    }
-
-    public void importDataFromUpload() throws Exception {
+    }public void importDataFromUpload() throws Exception {
         System.out.println("importDataFromUpload called");
         currentImport.setOwner(getCurrentOwner());
-        currentImport.setStatus(ImportStatus.FAILED);
+        currentImport.setStatus(ImportStatus.FAILED); // Default status
         try {
             if (xmlFile == null) {
                 throw new Exception("No file uploaded!");
             }
             System.out.println("File uploaded");
-//            tm.begin();
             List<Ticket> tickets = loader.loadTicketsFromFile(xmlFile);
 
             String fileUrl = commit(tickets, xmlFile);
@@ -184,22 +143,77 @@ public class ImportBean extends UsedManagerBean<Import> {
             currentImport.setStatus(ImportStatus.FINISHED);
             currentImport.setCreatedEntitiesCount((long) tickets.size());
             currentImport.setMessage("Import completed successfully");
-            Actions.addCommit(currentImport);
+            //Actions.addCommit(currentImport, em); // Don't do this here! (Em is already closed)
+            Actions.add(currentImport); // save without EM, fix it
             FacesContext.getCurrentInstance().addMessage(null,
                     new FacesMessage(FacesMessage.SEVERITY_INFO, "Import successful", null));
             System.out.println("Ticket saved successfully.");
-//            tm.commit();
+
         } catch (Exception e) {
             System.out.println("Import error: " + e);
-//            tm.rollback();
             currentImport.setMessage(e.getMessage());
-            Actions.add(currentImport);
+            Actions.add(currentImport); // save without EM, fix it
             FacesContext.getCurrentInstance().addMessage(null,
                     new FacesMessage(FacesMessage.SEVERITY_ERROR, e.getMessage(), ""));
         }
     }
+    public void saveTickets(List<Ticket> tickets, EntityManager em) throws Exception {
+        FacesContext facesContext = FacesContext.getCurrentInstance();
+        List<Ticket> savedTickets = new ArrayList<>();
 
+        try {
+            for (Ticket ticket : tickets) {
+                ValidationResult valid = validateTicket(ticket);
 
+                if (!valid.getIsValid()) {
+                    throw new Exception("Import failed due to invalid ticket data.");
+                }
+
+                try {
+                    ticket.getVenue().getAddress().setOwner(getCurrentOwner());
+                    Actions.addCommit(ticket.getVenue().getAddress(), em);
+
+                    ticket.getVenue().setOwner(getCurrentOwner());
+                    Actions.addCommit(ticket.getVenue(), em);
+
+                    ticket.getCoordinates().setOwner(getCurrentOwner());
+                    Actions.addCommit(ticket.getCoordinates(), em);
+
+                    ticket.getEvent().setOwner(getCurrentOwner());
+                    Actions.addCommit(ticket.getEvent(), em);
+
+                    ticket.getPerson().getLocation().setOwner(getCurrentOwner());
+                    Actions.addCommit(ticket.getPerson().getLocation(), em);
+
+                    ticket.getPerson().setOwner(getCurrentOwner());
+                    Actions.addCommit(ticket.getPerson(), em);
+
+                    ticket.setOwner(getCurrentOwner());
+                    Actions.addCommit(ticket, em);
+
+                    savedTickets.add(ticket);
+                } catch (Exception e) {
+                    // Log the error
+                    System.err.println("Error saving ticket: " + ticket.getName() + " - " + e.getMessage());
+                    facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
+                            "Error saving ticket: " + ticket.getName() + " - " + e.getMessage(), null));
+                }
+            }
+
+            em.flush(); // Flush after processing ALL tickets, inside the transaction
+
+            if (savedTickets.size() < tickets.size()) {
+                facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_WARN,
+                        "Some tickets not saved, see logs", null));
+            }
+            System.out.println("Уже не работает?");
+
+        } catch (Exception e) {
+            // This catch block handles the validation exception.
+            throw e; // Re-throw to rollback the entire import if validation fails.
+        }
+
+    }
     private boolean isTicketNameExists(String name) {
         List<Ticket> existingTickets = Actions.findAll(Ticket.class);
         return existingTickets.stream()
@@ -304,19 +318,19 @@ public class ImportBean extends UsedManagerBean<Import> {
                 .credentials("minioadmin", "minioadmin")
                 .build();
     }
-
-    public UserTransaction getUserTransaction() throws Exception {
-        return (UserTransaction) new InitialContext().lookup("java:comp/UserTransaction");
-    }
-
-    private void initTransactionalClasses() {
-        try {
-            this.utx = com.arjuna.ats.jta.UserTransaction.userTransaction();
-            this.tm = com.arjuna.ats.jta.TransactionManager.transactionManager();
-        } catch (Exception e) {
-            System.out.println("Error initializing transactional classes: " + e.getMessage());
-        }
-    }
+//
+//    public UserTransaction getUserTransaction() throws Exception {
+//        return (UserTransaction) new InitialContext().lookup("java:comp/UserTransaction");
+//    }
+//
+//    private void initTransactionalClasses() {
+//        try {
+//            this.utx = com.arjuna.ats.jta.UserTransaction.userTransaction();
+//            this.tm = com.arjuna.ats.jta.TransactionManager.transactionManager();
+//        } catch (Exception e) {
+//            System.out.println("Error initializing transactional classes: " + e.getMessage());
+//        }
+//    }
 
     @Override
     public List<Long> getIdList() {

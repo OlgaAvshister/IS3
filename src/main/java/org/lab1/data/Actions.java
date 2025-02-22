@@ -10,8 +10,11 @@ import javax.faces.application.FacesMessage;
 import javax.faces.context.FacesContext;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
+import javax.persistence.EntityTransaction;
 import javax.persistence.Persistence;
+import javax.transaction.SystemException;
 import javax.transaction.Transactional;
+import javax.transaction.UserTransaction;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -141,28 +144,24 @@ public class Actions {
             em.close();
         }
     }
-
-    public static void addCommit(Object o) {
-        if (!o.getClass().equals(Change.class) && !o.getClass().equals(Import.class)) {
+    public static void addCommit(Object o, EntityManager em) {
+        if (!o.getClass().equals(Change.class)) {
             Change change = new Change();
             change.setEntity(o.getClass().getName());
             change.setOwner(null);
             change.setType("Add");
             change.setChangeDate(new Date());
-            addCommit(change);
+            System.out.println("Adding Change object for entity: " + o.getClass().getName());
+            em.persist(change);
         }
-        EntityManager em = emf.createEntityManager();
+
         try {
-            em.joinTransaction();
+            System.out.println("Merging object: " + o.getClass().getName());
             em.merge(o);
         } catch (Exception e) {
-            if (em.getTransaction().isActive()) {
-                em.getTransaction().rollback();
-            }
-            throw e;
+            throw e; // Re-throw exception
         }
     }
-
     public static void delete(Object o) throws PSQLException {
         FacesContext facesContext = FacesContext.getCurrentInstance();
         Change change = new Change();
