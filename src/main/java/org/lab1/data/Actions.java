@@ -144,7 +144,8 @@ public class Actions {
             em.close();
         }
     }
-    public static void addCommit(Object o, EntityManager em) {
+    public static void addCommit(Object o, EntityManager em) throws Exception {
+        FacesContext facesContext = FacesContext.getCurrentInstance();
         if (!o.getClass().equals(Change.class)) {
             Change change = new Change();
             change.setEntity(o.getClass().getName());
@@ -154,12 +155,16 @@ public class Actions {
             System.out.println("Adding Change object for entity: " + o.getClass().getName());
             em.persist(change);
         }
-
         try {
             System.out.println("Merging object: " + o.getClass().getName());
             em.merge(o);
+            if (o.getClass().equals(Ticket.class) && isTicketNameExists(((Ticket) o).getName())) {
+                facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
+                        "Ticket с таким name уже существует: " + ((Ticket) o).getName(), null));
+                throw new Exception("Ticket с таким name уже существует в import файле: " + ((Ticket) o).getName());
+            }
         } catch (Exception e) {
-            throw e; // Re-throw exception
+            throw e;
         }
     }
     public static void delete(Object o) throws PSQLException {

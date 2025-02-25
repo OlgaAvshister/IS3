@@ -17,8 +17,7 @@ import org.lab1.data.entity.enums.ImportStatus;
 import org.primefaces.model.file.UploadedFile;
 
 import javax.annotation.Resource;
-import javax.ejb.TransactionAttribute;
-import javax.ejb.TransactionAttributeType;
+import javax.ejb.*;
 import javax.faces.application.FacesMessage;
 import javax.faces.bean.ManagedBean;
 import javax.faces.bean.RequestScoped;
@@ -33,13 +32,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import javax.ejb.Stateless;
-
 @ManagedBean(name = "importBean")
 @RequestScoped
 @Getter
 @Setter
-//@Stateless
 public class ImportBean extends UsedManagerBean<Import> {
     private String itemName = "import";
     private UploadedFile xmlFile;
@@ -49,87 +45,97 @@ public class ImportBean extends UsedManagerBean<Import> {
     @Getter(value = AccessLevel.NONE)
     private List<Import> imports;
     TicketLoader loader;
+    FacesContext facesContext = FacesContext.getCurrentInstance();
     private MinioClient minioClient;
-//    private TransactionManager tm = null;
 
     public ImportBean() {
         super(Import.class, "import");
         this.minioClient = getMinioClient();
         loader = new TicketLoader();
-//        initTransactionalClasses();
     }
 
     protected ImportBean(Class<Import> classType, String name) {
         super(classType, name);
         loader = new TicketLoader();
-//        initTransactionalClasses();
     }
+    private final Object transactionLock = new Object();
+
+
     public String commit(List<Ticket> tickets, UploadedFile file) throws Exception {
         boolean simulateError = false;
         String bucketName = "bucket";
         String fileName = currentImport.getOwner().getLogin() + "_" + System.currentTimeMillis() + "/" +
                 Objects.requireNonNull(file.getFileName());
 
-        EntityManager em = PersistenceManager.getEntityManager(); // Создаем EntityManager внутри метода
-        EntityTransaction transaction = em.getTransaction(); // Получаем объект EntityTransaction
-        try {
-            transaction.begin(); // Начинаем транзакцию
-
+        EntityManager em = PersistenceManager.getEntityManager();
+        EntityTransaction transaction = em.getTransaction();
+        synchronized (transactionLock) {
             try {
-                saveTickets(tickets, em); // Не передаем utx
-                System.out.println("tickets saved");
-                if (simulateError) {
-                    throw new RuntimeException("Какая-то ошибка в бизнес логике -> rollback транзакции");
+                transaction.begin();
+                try {
+                    saveTickets(tickets, em);
+                    System.out.println("tickets saved");
+                    if (simulateError) {
+                        facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
+                                "Какая-то ошибка в бизнес логике", null));
+                        throw new RuntimeException("Какая-то ошибка в бизнес логике -> rollback транзакции");
+                    }
+
+                    InputStream fileInputStream = file.getInputStream();
+                    long fileSize = file.getSize();
+
+                    minioClient.putObject(
+                            PutObjectArgs.builder()
+                                    .bucket(bucketName)
+                                    .object(fileName)
+                                    .stream(fileInputStream, fileSize, -1)
+                                    .build()
+                    );
+
+                    String fileUrlAfterSave = minioClient.getPresignedObjectUrl(
+                            GetPresignedObjectUrlArgs.builder()
+                                    .method(Method.GET)
+                                    .bucket(bucketName)
+                                    .object(fileName)
+                                    .build());
+
+                    currentImport.setFileUrl(fileUrlAfterSave);
+                    currentImport.setStatus(ImportStatus.FINISHED);
+                    currentImport.setCreatedEntitiesCount((long) tickets.size());
+                    currentImport.setMessage("Import completed successfully");
+                    Actions.addCommit(currentImport, em);
+
+                    transaction.commit();
+                    return fileUrlAfterSave;
+
+                } catch (Exception e) {
+                    facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
+                            "Transaction failed", null));
+                    System.err.println("Transaction failed: " + e.getMessage());
+                    if (transaction.isActive()) {
+                        transaction.rollback();
+                    }
+                    throw e;
                 }
-
-                InputStream fileInputStream = file.getInputStream();
-                long fileSize = file.getSize();
-
-                minioClient.putObject(
-                        PutObjectArgs.builder()
-                                .bucket(bucketName)
-                                .object(fileName)
-                                .stream(fileInputStream, fileSize, -1)
-                                .build()
-                );
-
-                String fileUrlAfterSave = minioClient.getPresignedObjectUrl(
-                        GetPresignedObjectUrlArgs.builder()
-                                .method(Method.GET)
-                                .bucket(bucketName)
-                                .object(fileName)
-                                .build());
-
-                currentImport.setFileUrl(fileUrlAfterSave);
-                currentImport.setStatus(ImportStatus.FINISHED);
-                currentImport.setCreatedEntitiesCount((long) tickets.size());
-                currentImport.setMessage("Import completed successfully");
-                Actions.addCommit(currentImport, em); // Не передаем utx
-
-                transaction.commit(); // Коммитим транзакцию
-                return fileUrlAfterSave;
 
             } catch (Exception e) {
-                System.err.println("Transaction failed: " + e.getMessage());
-                if (transaction.isActive()) { // Проверяем, активна ли транзакция перед откатом
-                    transaction.rollback(); // Откатываем транзакцию
+                facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
+                        "Transaction failed to begin", null));
+                System.err.println("Transaction failed to begin: " + e.getMessage());
+                throw e;
+
+            } finally {
+                if (em != null && em.isOpen()) {
+                    em.close();
                 }
-                throw e; // Важно: перебрасываем исключение, чтобы его обработал вызывающий метод
-            }
-
-        } catch (Exception e) {
-            System.err.println("Transaction failed to begin: " + e.getMessage());
-            throw e; // Важно: перебрасываем исключение, чтобы его обработал вызывающий метод
-
-        } finally {
-            if (em != null && em.isOpen()) {
-                em.close(); // Закрываем EntityManager в finally в том же методе, где началась транзакция
             }
         }
-    }public void importDataFromUpload() throws Exception {
+    }
+
+    public void importDataFromUpload() throws Exception {
         System.out.println("importDataFromUpload called");
         currentImport.setOwner(getCurrentOwner());
-        currentImport.setStatus(ImportStatus.FAILED); // Default status
+        currentImport.setStatus(ImportStatus.FAILED);
         try {
             if (xmlFile == null) {
                 throw new Exception("No file uploaded!");
@@ -143,8 +149,7 @@ public class ImportBean extends UsedManagerBean<Import> {
             currentImport.setStatus(ImportStatus.FINISHED);
             currentImport.setCreatedEntitiesCount((long) tickets.size());
             currentImport.setMessage("Import completed successfully");
-            //Actions.addCommit(currentImport, em); // Don't do this here! (Em is already closed)
-            Actions.add(currentImport); // save without EM, fix it
+            Actions.add(currentImport);
             FacesContext.getCurrentInstance().addMessage(null,
                     new FacesMessage(FacesMessage.SEVERITY_INFO, "Import successful", null));
             System.out.println("Ticket saved successfully.");
@@ -152,7 +157,7 @@ public class ImportBean extends UsedManagerBean<Import> {
         } catch (Exception e) {
             System.out.println("Import error: " + e);
             currentImport.setMessage(e.getMessage());
-            Actions.add(currentImport); // save without EM, fix it
+            Actions.add(currentImport);
             FacesContext.getCurrentInstance().addMessage(null,
                     new FacesMessage(FacesMessage.SEVERITY_ERROR, e.getMessage(), ""));
         }
@@ -166,6 +171,8 @@ public class ImportBean extends UsedManagerBean<Import> {
                 ValidationResult valid = validateTicket(ticket);
 
                 if (!valid.getIsValid()) {
+                    FacesContext.getCurrentInstance().addMessage(null,
+                            new FacesMessage(FacesMessage.SEVERITY_INFO, "Import failed due to invalid ticket data", null));
                     throw new Exception("Import failed due to invalid ticket data.");
                 }
 
@@ -193,24 +200,16 @@ public class ImportBean extends UsedManagerBean<Import> {
 
                     savedTickets.add(ticket);
                 } catch (Exception e) {
-                    // Log the error
                     System.err.println("Error saving ticket: " + ticket.getName() + " - " + e.getMessage());
                     facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
                             "Error saving ticket: " + ticket.getName() + " - " + e.getMessage(), null));
                 }
             }
 
-            em.flush(); // Flush after processing ALL tickets, inside the transaction
-
-            if (savedTickets.size() < tickets.size()) {
-                facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_WARN,
-                        "Some tickets not saved, see logs", null));
-            }
-            System.out.println("Уже не работает?");
+            em.flush();
 
         } catch (Exception e) {
-            // This catch block handles the validation exception.
-            throw e; // Re-throw to rollback the entire import if validation fails.
+            throw e;
         }
 
     }
@@ -318,19 +317,6 @@ public class ImportBean extends UsedManagerBean<Import> {
                 .credentials("minioadmin", "minioadmin")
                 .build();
     }
-//
-//    public UserTransaction getUserTransaction() throws Exception {
-//        return (UserTransaction) new InitialContext().lookup("java:comp/UserTransaction");
-//    }
-//
-//    private void initTransactionalClasses() {
-//        try {
-//            this.utx = com.arjuna.ats.jta.UserTransaction.userTransaction();
-//            this.tm = com.arjuna.ats.jta.TransactionManager.transactionManager();
-//        } catch (Exception e) {
-//            System.out.println("Error initializing transactional classes: " + e.getMessage());
-//        }
-//    }
 
     @Override
     public List<Long> getIdList() {
