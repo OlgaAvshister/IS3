@@ -50,8 +50,10 @@ public class ImportBean extends UsedManagerBean<Import> {
 
     public ImportBean() {
         super(Import.class, "import");
+        System.out.println("Constructor ImportBean() called");
         this.minioClient = getMinioClient();
         loader = new TicketLoader();
+        System.out.println("ImportBean() constructor completed");
     }
 
     protected ImportBean(Class<Import> classType, String name) {
@@ -62,6 +64,7 @@ public class ImportBean extends UsedManagerBean<Import> {
 
 
     public String commit(List<Ticket> tickets, UploadedFile file) throws Exception {
+        System.out.println("commit started");
         boolean simulateError = false;
         String bucketName = "bucket";
         String fileName = currentImport.getOwner().getLogin() + "_" + System.currentTimeMillis() + "/" +
@@ -72,6 +75,7 @@ public class ImportBean extends UsedManagerBean<Import> {
         synchronized (transactionLock) {
             try {
                 transaction.begin();
+                System.out.println("Transaction started");
                 try {
                     saveTickets(tickets, em);
                     System.out.println("tickets saved");
@@ -109,9 +113,6 @@ public class ImportBean extends UsedManagerBean<Import> {
                     return fileUrlAfterSave;
 
                 } catch (Exception e) {
-                    facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
-                            "Transaction failed", null));
-                    System.err.println("Transaction failed: " + e.getMessage());
                     if (transaction.isActive()) {
                         transaction.rollback();
                     }
@@ -119,9 +120,6 @@ public class ImportBean extends UsedManagerBean<Import> {
                 }
 
             } catch (Exception e) {
-                facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
-                        "Transaction failed to begin", null));
-                System.err.println("Transaction failed to begin: " + e.getMessage());
                 throw e;
 
             } finally {
@@ -159,13 +157,13 @@ public class ImportBean extends UsedManagerBean<Import> {
             currentImport.setMessage(e.getMessage());
             Actions.add(currentImport);
             FacesContext.getCurrentInstance().addMessage(null,
-                    new FacesMessage(FacesMessage.SEVERITY_ERROR, e.getMessage(), ""));
+                    new FacesMessage(FacesMessage.SEVERITY_ERROR, "Transaction failed", null));
         }
     }
     public void saveTickets(List<Ticket> tickets, EntityManager em) throws Exception {
         FacesContext facesContext = FacesContext.getCurrentInstance();
         List<Ticket> savedTickets = new ArrayList<>();
-
+        Thread.sleep(5000);
         try {
             for (Ticket ticket : tickets) {
                 ValidationResult valid = validateTicket(ticket);
@@ -175,7 +173,6 @@ public class ImportBean extends UsedManagerBean<Import> {
                             new FacesMessage(FacesMessage.SEVERITY_INFO, "Import failed due to invalid ticket data", null));
                     throw new Exception("Import failed due to invalid ticket data.");
                 }
-
                 try {
                     ticket.getVenue().getAddress().setOwner(getCurrentOwner());
                     Actions.addCommit(ticket.getVenue().getAddress(), em);
@@ -203,6 +200,7 @@ public class ImportBean extends UsedManagerBean<Import> {
                     System.err.println("Error saving ticket: " + ticket.getName() + " - " + e.getMessage());
                     facesContext.addMessage(null, new FacesMessage(FacesMessage.SEVERITY_ERROR,
                             "Error saving ticket: " + ticket.getName() + " - " + e.getMessage(), null));
+                    throw e;
                 }
             }
 
@@ -211,7 +209,6 @@ public class ImportBean extends UsedManagerBean<Import> {
         } catch (Exception e) {
             throw e;
         }
-
     }
     private boolean isTicketNameExists(String name) {
         List<Ticket> existingTickets = Actions.findAll(Ticket.class);

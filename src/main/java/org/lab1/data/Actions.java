@@ -167,6 +167,7 @@ public class Actions {
             throw e;
         }
     }
+
     public static void delete(Object o) throws PSQLException {
         FacesContext facesContext = FacesContext.getCurrentInstance();
         Change change = new Change();
